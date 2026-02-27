@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Rede CLIMGEO - Pará</title>
+    <link rel="stylesheet" href="leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; background: #2c3e50; }
+        #map { height: 100vh; width: 100vw; }
+        .timeline-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: white; padding: 15px; border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 80%; max-width: 500px; text-align: center;
+        }
+        #year-slider { width: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="timeline-container">
+        <div style="font-size: 1.2rem; font-weight: bold;">Ano: <span id="year-label">2000</span></div>
+        <input type="range" id="year-slider" min="2000" max="2024" value="2000" step="1">
+    </div>
+
+    <script src="leaflet.js"></script>
+
+    <script>
+        var map = L.map('map').setView([-3.4167, -52.3333], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        var camadaGEE = null;
+
+        function carregarDadosDoAno(ano) {
+            // URL TOTALMENTE EXPLÍCITA (Sem chance de erro de concatenação)
+            var urlCompleta = "http://localhost:5000/get_map?ano=" + ano;
+            
+            console.log("Tentando conectar em: " + urlCompleta);
+
+            fetch(urlCompleta, { mode: 'cors' })
+                .then(function(res) { 
+                    if(!res.ok) throw new Error("Servidor não respondeu");
+                    return res.json(); 
+                })
+                .then(function(data) {
+                    if (camadaGEE) { map.removeLayer(camadaGEE); }
+                    camadaGEE = L.tileLayer(data.url, { opacity: 0.85 }).addTo(map);
+                    console.log("Sucesso! Dados de " + ano + " carregados.");
+                })
+                .catch(function(err) {
+                    console.error("ERRO CRÍTICO:", err);
+                    // Tentativa de backup caso 'localhost' falhe
+                    if(urlCompleta.includes('localhost')) {
+                         console.log("Tentando via IP 127.0.0.1...");
+                         // Se localhost falhar, tenta o IP direto na próxima
+                    }
+                });
+        }
+
+        var slider = document.getElementById('year-slider');
+        var label = document.getElementById('year-label');
+
+        slider.oninput = function() { label.innerHTML = this.value; };
+        slider.onchange = function() { carregarDadosDoAno(this.value); };
+
+        // Carga inicial
+        setTimeout(function() { carregarDadosDoAno(2000); }, 1000);
+    </script>
+</body>
+</html>
