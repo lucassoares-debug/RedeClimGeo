@@ -2,72 +2,140 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Rede CLIMGEO - Pará</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rede CLIMGEO - LAGECLIM</title>
+    
+    <!-- Leaflet CSS Local -->
     <link rel="stylesheet" href="leaflet.css" />
+    
     <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; background: #2c3e50; }
-        #map { height: 100vh; width: 100vw; }
-        .timeline-container {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: white; padding: 15px; border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 80%; max-width: 500px; text-align: center;
+        /* ============================================================
+           1. ESTILOS GERAIS (LAYOUT DA PÁGINA)
+           ============================================================ */
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #map { height: 100vh; width: 100vw; z-index: 1; background: #f8f9fa; }
+
+        /* ============================================================
+           2. TÍTULO INSTITUCIONAL (CANTO SUP. ESQUERDO)
+           ============================================================ */
+        .brand-title {
+            position: absolute; top: 20px; left: 60px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 12px 20px;
+            border-radius: 4px; border-left: 5px solid #003366;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
         }
-        #year-slider { width: 100%; cursor: pointer; }
+        .brand-title h1 { margin: 0; font-size: 1.1rem; color: #003366; text-transform: uppercase; letter-spacing: 1px; }
+        .brand-title p { margin: 3px 0 0 0; font-size: 0.8rem; color: #555; font-weight: 600; }
+
+        /* ============================================================
+           3. LEGENDA TÉRMICA (CANTO SUP. DIREITO) - CORES EM LINHA
+           ============================================================ */
+        .legend {
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 6px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1); border: 1px solid #ddd;
+            min-width: 160px;
+        }
+        .legend strong { display: block; margin-bottom: 10px; color: #333; font-size: 13px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; color: #444; }
+        .legend-item i { width: 22px; height: 22px; margin-right: 12px; border: 0.5px solid #666; border-radius: 2px; }
+
+        /* ============================================================
+           4. SLIDER TEMPORAL (CANTO INF. DIREITO)
+           ============================================================ */
+        .timeline-container {
+            position: absolute; bottom: 40px; right: 20px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px;
+            border-radius: 8px; width: 230px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 1px solid #003366; text-align: center;
+        }
+        #yearSlider { width: 100%; cursor: pointer; accent-color: #003366; margin-top: 5px; }
+        .year-label { font-size: 1.2rem; font-weight: bold; color: #003366; display: block; }
     </style>
 </head>
 <body>
 
+    <!-- ELEMENTOS DE INTERFACE -->
+    <div class="brand-title">
+        <h1>Rede CLIMGEO - LAGECLIM</h1>
+        <p>Monitoramento TST (MODIS)</p>
+    </div>
+
     <div id="map"></div>
 
     <div class="timeline-container">
-        <div style="font-size: 1.2rem; font-weight: bold;">Ano: <span id="year-label">2000</span></div>
-        <input type="range" id="year-slider" min="2000" max="2024" value="2000" step="1">
+        <span class="year-label" id="yearLabel">Ano: 2023</span>
+        <input type="range" id="yearSlider" min="2000" max="2024" value="2023">
     </div>
 
+    <!-- SCRIPTS -->
     <script src="leaflet.js"></script>
-
     <script>
-        var map = L.map('map').setView([-3.4167, -52.3333], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        window.onload = function() {
 
-        var camadaGEE = null;
-
-        function carregarDadosDoAno(ano) {
-            // URL TOTALMENTE EXPLÍCITA (Sem chance de erro de concatenação)
-            var urlCompleta = "http://localhost:5000/get_map?ano=" + ano;
+            /* ========================================================
+               A. INICIALIZAÇÃO E CENTRALIZAÇÃO NO PARÁ
+               Ajustado para Lat -3.8 e Long -52.3 (Centro do Estado)
+               ======================================================== */
+            var map = L.map('map', { zoomControl: true }).setView([-3.85, -52.3], 6);
             
-            console.log("Tentando conectar em: " + urlCompleta);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: 'LAGECLIM | IFPA | GEE'
+            }).addTo(map);
 
-            fetch(urlCompleta, { mode: 'cors' })
-                .then(function(res) { 
-                    if(!res.ok) throw new Error("Servidor não respondeu");
-                    return res.json(); 
-                })
-                .then(function(data) {
-                    if (camadaGEE) { map.removeLayer(camadaGEE); }
-                    camadaGEE = L.tileLayer(data.url, { opacity: 0.85 }).addTo(map);
-                    console.log("Sucesso! Dados de " + ano + " carregados.");
-                })
-                .catch(function(err) {
-                    console.error("ERRO CRÍTICO:", err);
-                    // Tentativa de backup caso 'localhost' falhe
-                    if(urlCompleta.includes('localhost')) {
-                         console.log("Tentando via IP 127.0.0.1...");
-                         // Se localhost falhar, tenta o IP direto na próxima
-                    }
-                });
-        }
+            /* ========================================================
+               B. CONFIGURAÇÃO DA ESCALA GRÁFICA (INF. ESQUERDO)
+               ======================================================== */
+            L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-        var slider = document.getElementById('year-slider');
-        var label = document.getElementById('year-label');
+            /* ========================================================
+               C. FUNÇÃO DE ATUALIZAÇÃO DE DADOS (API FLASK)
+               ======================================================== */
+            let geeLayer;
+            function updateMap(year) {
+                document.getElementById('yearLabel').innerText = `Ano: ${year}`;
+                fetch(`http://localhost:5001/get_map?year=${year}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (geeLayer) map.removeLayer(geeLayer);
+                        if (data.url) {
+                            geeLayer = L.tileLayer(data.url).addTo(map);
+                        }
+                    })
+                    .catch(err => console.error("Erro na integração:", err));
+            }
 
-        slider.oninput = function() { label.innerHTML = this.value; };
-        slider.onchange = function() { carregarDadosDoAno(this.value); };
+            /* ========================================================
+               D. LÓGICA DA LEGENDA (CANTO SUP. DIREITO)
+               Exibe Cor e Intervalo na mesma linha
+               ======================================================== */
+            var legendControl = L.control({position: 'topright'});
+            legendControl.onAdd = function (map) {
+                var div = L.DomUtil.create('div', 'legend');
+                var labels = ['20°C - 24°C', '24°C - 28°C', '28°C - 32°C', '32°C - 36°C', '36°C - 40°C'],
+                    colors = ['#0000FF', '#00FF00', '#FFFF00', '#FF7F00', '#FF0000'];
 
-        // Carga inicial
-        setTimeout(function() { carregarDadosDoAno(2000); }, 1000);
+                div.innerHTML = '<strong>Temp. Superfície</strong>';
+                
+                for (var i = 0; i < labels.length; i++) {
+                    div.innerHTML += 
+                        '<div class="legend-item">' +
+                        '<i style="background:' + colors[i] + '"></i> ' +
+                        '<span>' + labels[i] + '</span>' +
+                        '</div>';
+                }
+                return div;
+            };
+            legendControl.addTo(map);
+
+            /* ========================================================
+               E. EVENTOS DE INTERAÇÃO (SLIDER)
+               ======================================================== */
+            document.getElementById('yearSlider').oninput = (e) => updateMap(e.target.value);
+            
+            // Carga inicial do ano de 2023
+            updateMap(2023); 
+        };
     </script>
 </body>
 </html>

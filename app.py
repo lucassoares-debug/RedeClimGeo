@@ -1,47 +1,46 @@
 import ee
-import flask
+import os
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-app = flask.Flask(__name__)
-CORS(app) # Permite a conversa com o HTML
+app = Flask(__name__)
+CORS(app) # Resolve o problema de bloqueio do navegador
 
-# --- CONFIGURAÇÃO ---
-GEE_EMAIL = 'SEU-EMAIL-AQUI@PROJETO.iam.gserviceaccount.com'
-JSON_CHAVE = 'chave-gee.json'
+# Autenticação Google Earth Engine
+# Certifique-se que o arquivo chave-gee.json está na mesma pasta
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'chave-gee.json'
+ee.Initialize(project='ee-lucaspsgeo')
 
-try:
-    credentials = ee.ServiceAccountCredentials(GEE_EMAIL, JSON_CHAVE)
-    ee.Initialize(credentials)
-    print("✅ Sucesso: Rede CLIMGEO conectada ao Google Earth Engine!")
-except Exception as e:
-    print(f"❌ Erro na conexão: {e}")
-
-@app.route('/get_map')
+@app.route('/get_map', methods=['GET'])
 def get_map():
-    ano = int(flask.request.args.get('ano', 2000))
-    aoi = ee.FeatureCollection("projects/ee-lucaspsgeo/assets/PA_UF_2024")
+    try:
+        year = int(request.args.get('year', 2023))
+        
+        # Carregando Asset do Pará e MODIS LST
+        region = ee.FeatureCollection("projects/ee-seu-usuario/assets/PA_UF_2024")
+        dataset = ee.ImageCollection("MODIS/061/MOD11A1") \
+                    .filterDate(f'{year}-01-01', f'{year}-12-31') \
+                    .select('LST_Day_1km') \
+                    .mean() \
+                    .clip(region)
+
+        # Conversão Kelvin para Celsius
+        lst_celsius = dataset.multiply(0.02).subtract(273.15)
+
+        # Configuração de Visualização
+        vis_params = {
+            'min': 20,
+            'max': 40,
+            'palette': ['0000FF', '00FF00', 'FFFF00', 'FF7F00', 'FF0000']
+        }
+
+        map_info = lst_celsius.getMapId(vis_params)
+        return jsonify({'url': map_info['tile_fetcher'].url_format})
     
-    # Processamento LST MODIS
-    img = ee.ImageCollection("MODIS/061/MOD11A1") \
-        .filterBounds(aoi) \
-        .filterDate(f'{ano}-01-01', f'{ano}-12-31') \
-        .select('LST_Day_1km') \
-        .mean() \
-        .multiply(0.02).subtract(273.15) \
-        .clip(aoi)
-
-    # Paleta Climática
-    vis_params = {
-        'min': 20, 'max': 40,
-        'palette': ['0000ff', '00ff00', 'ffff00', 'ff7f00', 'ff0000']
-    }
-
-    map_id_dict = ee.data.getMapId({'image': img.visualize(**vis_params)})
-    return flask.jsonify({'url': map_id_dict['tile_fetcher'].url_format})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(port=5000)
-
-if __name__ == '__main__':
-    # O host '0.0.0.0' ajuda o Windows a não bloquear a conexão local
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Rodando na porta 5001 para evitar conflitos de firewall do IFPA
+    print("✅ Servidor RedeClimGeo Ativo em http://localhost:5001")
+    app.run(port=5001, debug=True)
