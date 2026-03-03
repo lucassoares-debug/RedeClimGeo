@@ -28,7 +28,7 @@
         .brand-title p { margin: 3px 0 0 0; font-size: 0.8rem; color: #555; font-weight: 600; }
 
         /* ============================================================
-           3. LEGENDA TÉRMICA (CANTO SUP. DIREITO) - CORES EM LINHA
+           3. LEGENDA TÉRMICA (CANTO SUP. DIREITO)
            ============================================================ */
         .legend {
             position: absolute; top: 20px; right: 20px; z-index: 1000;
@@ -51,21 +51,34 @@
         }
         #yearSlider { width: 100%; cursor: pointer; accent-color: #003366; margin-top: 5px; }
         .year-label { font-size: 1.2rem; font-weight: bold; color: #003366; display: block; }
+
+        /* ============================================================
+           5. ESTILO DO MINI-MAPA (CANTO INF. ESQUERDO)
+           ============================================================ */
+        #mini-map {
+            position: absolute; bottom: 80px; left: 20px; 
+            width: 150px; height: 150px; z-index: 1000;
+            border: 2px solid #003366; border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            background: white;
+        }
     </style>
 </head>
 <body>
 
     <!-- ELEMENTOS DE INTERFACE -->
+    <div id="mini-map"></div>
+    <div id="map"></div>
+
     <div class="brand-title">
         <h1>Rede CLIMGEO - LAGECLIM</h1>
         <p>Monitoramento TST (MODIS)</p>
     </div>
 
-    <div id="map"></div>
-
     <div class="timeline-container">
-        <span class="year-label" id="yearLabel">Ano: 2023</span>
-        <input type="range" id="yearSlider" min="2000" max="2024" value="2023">
+        <!-- AJUSTADO: Valor inicial para 2000 -->
+        <span class="year-label" id="yearLabel">Ano: 2000</span>
+        <input type="range" id="yearSlider" min="2000" max="2024" value="2000">
     </div>
 
     <!-- SCRIPTS -->
@@ -74,8 +87,7 @@
         window.onload = function() {
 
             /* ========================================================
-               A. INICIALIZAÇÃO E CENTRALIZAÇÃO NO PARÁ
-               Ajustado para Lat -3.8 e Long -52.3 (Centro do Estado)
+               A. MAPA PRINCIPAL E CENTRALIZAÇÃO NO PARÁ
                ======================================================== */
             var map = L.map('map', { zoomControl: true }).setView([-3.85, -52.3], 6);
             
@@ -98,25 +110,21 @@
                     .then(res => res.json())
                     .then(data => {
                         if (geeLayer) map.removeLayer(geeLayer);
-                        if (data.url) {
-                            geeLayer = L.tileLayer(data.url).addTo(map);
-                        }
+                        if (data.url) geeLayer = L.tileLayer(data.url).addTo(map);
                     })
                     .catch(err => console.error("Erro na integração:", err));
             }
 
             /* ========================================================
                D. LÓGICA DA LEGENDA (CANTO SUP. DIREITO)
-               Exibe Cor e Intervalo na mesma linha
                ======================================================== */
             var legendControl = L.control({position: 'topright'});
             legendControl.onAdd = function (map) {
                 var div = L.DomUtil.create('div', 'legend');
                 var labels = ['20°C - 24°C', '24°C - 28°C', '28°C - 32°C', '32°C - 36°C', '36°C - 40°C'],
                     colors = ['#0000FF', '#00FF00', '#FFFF00', '#FF7F00', '#FF0000'];
-
-                div.innerHTML = '<strong>Temp. Superfície</strong>';
                 
+                div.innerHTML = '<strong>Temp. Superfície</strong>';
                 for (var i = 0; i < labels.length; i++) {
                     div.innerHTML += 
                         '<div class="legend-item">' +
@@ -133,9 +141,23 @@
                ======================================================== */
             document.getElementById('yearSlider').oninput = (e) => updateMap(e.target.value);
             
-            // Carga inicial do ano de 2023
-            updateMap(2023); 
-        };
+            // AJUSTADO: Carga inicial alterada para o ano 2000
+            updateMap(2000); 
+
+            /* ========================================================
+               F. CONFIGURAÇÃO DO MINI-MAPA DE LOCALIZAÇÃO
+               ======================================================== */
+            var miniMap = L.map('mini-map', {
+                attributionControl: false, zoomControl: false, dragging: false,
+                touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false
+            }).setView([-3.85, -52.3], 1); 
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+            
+            var bounds = [[-9.8, -58.9], [2.5, -46.0]];
+            L.rectangle(bounds, {color: "#ff0000", weight: 1, fillOpacity: 0.3}).addTo(miniMap);
+
+        }; // FIM DA WINDOW.ONLOAD
     </script>
 </body>
 </html>
